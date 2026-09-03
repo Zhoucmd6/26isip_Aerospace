@@ -6,6 +6,8 @@
 - `processed/`：清洗、时间对齐、单位确认后的数据；
 - `calibration/`：由原始数据辨识得到、带适用范围和留出验证记录的参数。
 
+完整采集项目、公共元数据、试验工况和 `plane.config` / `x8phys.config` 字段映射见 [`../../px4_x8/data/X8PHYS_CALIBRATION_PLAN.md`](../../px4_x8/data/X8PHYS_CALIBRATION_PLAN.md)。
+
 ## `raw/功率-升力.xlsx`
 
 来源：用户于 2026-09-02 提供的原始 Excel；本次仅移动位置，未编辑工作簿内容。

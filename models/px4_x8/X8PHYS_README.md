@@ -9,6 +9,8 @@ AI协助：Codex
 
 `+x8phys` 是 `models/px4_x8` 的可替换 MATLAB 对象边界，用于把执行器命令、风和无人机运动/电池状态连成一个可测试的闭环。它不修改 `air.slx`/`air_m0c.slx`，也不改变 ESC/RL 接口。当前仍是简化、未校准代理，不宣称与 `shared6dof/6DOF` 数值等价。
 
+完整的实测数据项目、最低字段/工况、现有配置映射和缺失配置入口见 [`data/X8PHYS_CALIBRATION_PLAN.md`](data/X8PHYS_CALIBRATION_PLAN.md)。该清单是后续校准执行入口；已有数据的哈希、清洗和拟合事实仍以 [`data/X8PHYS_DATA.md`](data/X8PHYS_DATA.md) 为准。
+
 ## 调用
 
 ```matlab

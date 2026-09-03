@@ -11,6 +11,8 @@ AI协助：Codex
 
 当前证据等级为 E0/E1 代理，`power_source=proxy`：功率模型和电池参数未校准，`motor_pwm_us`/`motor_rpm` 在该统一代理中暂以 `NaN +` 非直接执行器有效语义保留；PX4 M2 的 PWM/RPM 适配仍通过 `models/px4_x8/+x8phys` 与后续 P4 接入完成。不得据此宣称真实节能、续航或飞行安全。
 
+后续实测采集、Plane/X8PHYS 配置字段映射和当前缺失参数入口统一见 [`../px4_x8/data/X8PHYS_CALIBRATION_PLAN.md`](../px4_x8/data/X8PHYS_CALIBRATION_PLAN.md)。
+
 运行：
 
 ```matlab
