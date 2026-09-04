@@ -138,12 +138,13 @@ AI协助：Codex（路线与状态整理；M2 第六轮、第九轮与第十轮�
 ## 下一步优先级
 
 1. **R0概念确认**：由周航正组织组内和老师确认ADR-001/ADR-004，冻结主任务、`v_ref`地速语义、名义功率图和在线可见信息；接口字典0.3仍待冻结为1.0。
-2. **并行Plane线**：建议霍奕茗负责（待确认），实现最小Plane API、空地速/圆周/执行动态、`P_nom/P_hidden/P_meas`分层、电池与测量链；先独立验收，不直接改主 `.slx`。
-3. **并行Environment线**：王健祺已有场景资产，建议继续统一PathCommand、NE风真值、风测量退化和训练/未见场景清单；首先关闭 `wind_field_sched` 的局部加号约定适配。
-4. **并行算法/Control线**：将固定、名义调度和速度ESC适配为同一慢层接口；叶安按已冻结的 [M3 v0.2](interfaces/M3_V_ETA_COORDINATION.md) 继续平台线。先按 [M3 第二轮独立报告 §6](evidence/M3_REACCEPT_ROUND2_CODEX_20260904.md) 关闭中心评价、扰动姿态门与分段证据治理，再在单一干净提交复跑完整 14 臂；Plane 通过后接入 `air_spare.slx` 并执行 R4。M2 的 R9-F1/R9-F2 已由第十轮独立关闭，R2022b 堆崩溃继续按环境限制管理。
-5. **统一Harness汇合**：周航正负责接口与总装，使用同一场景、随机种子、隐藏对象和约束比较固定、名义调度、ESC及Oracle上界；Oracle结果不得写成在线策略结果。
-6. **数据与标定线**：用CFD/BEMT、文献或后续台架数据校准Plane参数；将`measuredPower`对接SITL或真实电压、电流与时间戳。真实数据缺失期间保留`estimated/proxy`来源标志，不把校准列作近期已完成项。
+2. **并行Plane线**：建议霍奕茗负责（待确认）。`models/plane` P0--P4 契约测试已通过（`run_plane_acceptance` 全绿，E0/E1 代理等级）；下一步是经 P4 适配器把 `plane.step` 接入 harness，替换 aircraft 代理对象（执行路线 §6 第 2 条），不直接改主 `.slx`。
+3. **并行Environment线**：王健祺已有场景资产，建议继续统一PathCommand、NE风真值、风测量退化和训练/未见场景清单；首先关闭 `wind_field_sched` 的局部加号约定适配；补齐任务7入口脚本（`START_HERE.m`/`run_task7_acceptance.m` 未入库）。
+4. **并行算法/Control线**：将固定、名义调度和速度ESC适配为同一慢层接口；叶安按已冻结的 [M3 v0.2](interfaces/M3_V_ETA_COORDINATION.md) 继续平台线。M3 第二轮独立验收的 F2/F3/F4/F6 已由第三轮修复关闭（修复方复验，[第三轮修复记录](evidence/M3_REACCEPT_ROUND3_FIX_20260904.md)），**待项目组安排独立复验通过后 M3 代理阶段收口**；Plane 通过后接入 `air_spare.slx` 并执行 R4。M2 的 R9-F1/R9-F2 已由第十轮独立关闭，R2022b 堆崩溃继续按环境限制管理。
+5. **统一Harness汇合**：周航正负责接口与总装，使用同一场景、随机种子、隐藏对象和约束比较固定、名义调度、ESC及Oracle上界；Oracle结果不得写成在线策略结果。汇合即执行路线 §0.6 的 V1 级（桌面模型仿真）主战场。
+6. **数据与标定线**：用CFD/BEMT、文献或后续台架数据校准Plane参数；将`measuredPower`对接SITL或真实电压、电流与时间戳。真实数据缺失期间保留`estimated/proxy`来源标志，不把校准列作近期已完成项。台架/地面/实飞验证按执行路线 §0.6 V2--V4 递进放行。
 7. **RL继续后置**：当前只做接口0.3适配和信息泄漏测试。R0-R4完成且强基线仍有稳定缺口后，才以BC热启动的残差结构重新评审训练；不把RL作为Plane或Environment的前置条件。
+8. **演示与展示层（新增，执行路线 §0.7）**：UI-A WPC 统一面板（控制台四模式 + 飞机模型表盘 + 环境模型风场，复用任务8/9 面板框架与 `run_mop_moe_demo` 数据通路）建议周航正或于跃认领；先以现有代理对象出样张，harness↔Plane 对接后切换数据源；面板遵守黑箱红线，不作为可引用数据源。
 
 ## 当前可引用的结果边界
 
