@@ -32,10 +32,12 @@ AI协助：Codex（模块盘点、分类和入口整理）
 | [`wind_field_sched`](wind_field_sched/) | 空速物理代理验收通过 | `START_HERE.m`、`run_wind_acceptance.m` | [`docs/evidence/wind_field_sched/`](../docs/evidence/wind_field_sched/) | 王健祺 |
 | [`realistic_constraints_search`](realistic_constraints_search/) | 真实约束重评估完成；⚠️负结果：因果策略不敌开环，有效性对后续工作存疑（见README警示） | `START_HERE.m`、`run_task7_acceptance.m` | [`docs/evidence/realistic_constraints_search/`](../docs/evidence/realistic_constraints_search/) | 王健祺 |
 | [`curve_case_calibration`](curve_case_calibration/) | 曲线case标定完成；⚠️文献代理机型不符，有效性对后续工作存疑（见README警示） | `START_HERE.m`、`run_task8_checks.m` | [`docs/evidence/curve_case_calibration/`](../docs/evidence/curve_case_calibration/) | 王健祺 |
-| [`wind_model_library`](wind_model_library/) | 七种风场模型库+空速语义完成；⚠️参数未实测校准、加号约定待适配，有效性对后续工作存疑（见README警示） | `START_HERE.m`、`run_task9_checks.m` | [`docs/evidence/wind_model_library/`](../docs/evidence/wind_model_library/) | 王健祺 |
+| [`wind_model_library`](wind_model_library/) | 七种风场模型库+空速语义完成；⚠️参数未实测校准、加号约定待适配（适配参考实现见 `wind_semantics_correction`） | `START_HERE.m`、`run_task9_checks.m` | [`docs/evidence/wind_model_library/`](../docs/evidence/wind_model_library/) | 王健祺 |
+| [`wind_semantics_correction`](wind_semantics_correction/) | 风速语义修正参考实现（空速=地速−风、风不影响运动、空速曲线固定；本地编号1.11，原task10）；⚠️参数未实测校准 | `START_HERE.m`、`run_task10_checks.m` | [`docs/evidence/wind_semantics_correction/`](../docs/evidence/wind_semantics_correction/) | 王健祺 |
+| [`wind_inference_search`](wind_inference_search/) | 第二轮2.1：风速推断寻优（功率调制反演风矢量+闭式地速调度，零探针逼近known上限）；⚠️依赖曲线先验（2.2不直接适用）、变风受滑窗滞后限制 | `START_HERE.m`、`run_task21_checks.m` | [`docs/evidence/wind_inference_search/`](../docs/evidence/wind_inference_search/) | 王健祺 |
 | [`unified_search`](unified_search/) | 任务1+2组合代理验收通过 | `START_HERE.m`、`run_unified_acceptance.m` | [`docs/evidence/unified_search/`](../docs/evidence/unified_search/) | 待项目组确认 |
 
-`wind_circle_search`、`sin_wind_search` 和 `ortho_wind_search` 使用风致功率曲线平移代理；`wind_field_sched` 才是当前路线中空速矢量关系、解析调度和信息结构的物理代理实现。两类结果不能直接混称。
+`wind_circle_search`、`sin_wind_search` 和 `ortho_wind_search` 使用风致功率曲线平移代理；`wind_field_sched` 是当前路线中空速矢量关系、解析调度和信息结构的物理代理实现（局部加号约定）；风速语义以 `wind_semantics_correction`（减号约定，接口字典0.3）为参考实现，其余加号约定模块接入统一线前须适配。两类结果不能直接混称。
 
 ## 强化学习预研
 

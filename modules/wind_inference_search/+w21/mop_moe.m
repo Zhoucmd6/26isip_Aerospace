@@ -8,7 +8,7 @@ function m = mop_moe(log, c)
 %   settleQueryRatio      非常驻查询的就位步占搜索步比例(任务7新增开销)
 % ── MOE(效能度量) ──
 %   energy / instant / availability / overall   overall=MOE_energy(2026-09-04用户口径: 仅续航能耗); instant/availability降为辅助诊断;
-%   (与开环基线的对比提升见 w8.compare_baseline, 不在本函数重复跑基线)。
+%   (与开环基线的对比提升见 w21.compare_baseline, 不在本函数重复跑基线)。
 n=height(log);
 m=struct();
 tail=max(1,n-c.tailSteps)+1:n;

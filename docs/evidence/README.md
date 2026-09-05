@@ -30,6 +30,7 @@ AI协助：Codex（证据分类与引用边界整理，2026-09-02）
 - [`adaptive_search/`](adaptive_search/)：自适应算法比较。
 - [`mop_moe/`](mop_moe/)：指标和效能评价。
 - [`realistic_constraints_search/`](realistic_constraints_search/)、[`curve_case_calibration/`](curve_case_calibration/) 与 [`wind_model_library/`](wind_model_library/)：真实约束重评估（⚠️含负结果与有效性警示）、曲线case标定与七种风场模型库。
+- [`wind_semantics_correction/`](wind_semantics_correction/)：风速语义修正（减号约定参考实现，本地编号1.11）检查证据与3×3验证表；[`wind_inference_search/`](wind_inference_search/)：第二轮风速推断寻优（本地编号2.1，windinfer）检查证据、因果性三重验证与3×3验证表。
 
 
 ## PX4-X8平台证据

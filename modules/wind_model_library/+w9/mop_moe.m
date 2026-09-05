@@ -7,7 +7,7 @@ function m = mop_moe(log, c)
 %   maxAccelUsed          全程最大|dv/dt|, 应<=aMax(物理性核验)      [m/s^2]
 %   settleQueryRatio      非常驻查询的就位步占搜索步比例(任务7新增开销)
 % ── MOE(效能度量) ──
-%   energy / instant / availability / overall   与任务6同口径;
+%   energy / instant / availability / overall   overall=MOE_energy(2026-09-04用户口径: 仅续航能耗); instant/availability降为辅助诊断;
 %   (与开环基线的对比提升见 w9.compare_baseline, 不在本函数重复跑基线)。
 n=height(log);
 m=struct();
@@ -49,7 +49,7 @@ m.MOP=struct('finalErr',m.finalErr,'settleSteps',m.tSearchEvals,...
     'settleQueryRatio',m.settleQueryRatio);
 m.MOE=struct('energy',m.MOE_energy,'instant',m.MOE_instant,...
     'availability',m.MOE_availability,...
-    'overall',0.5*m.MOE_energy+0.3*m.MOE_instant+0.2*m.MOE_availability);
+    'overall',m.MOE_energy);   % 2026-09-04用户口径: MOE只考虑续航能耗=Emin/Eactual
 if ~c.energyAccounting
     m.energyExcessPercent=NaN;
     m.MOE_energy=NaN;
