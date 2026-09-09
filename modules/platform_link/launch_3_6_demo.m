@@ -15,13 +15,33 @@ function fig = launch_3_6_demo(visible)
 %   4) 七种可选风场模型(下拉选中即预览)与曲线case标定全部保留。
 if nargin<1, visible='on'; end
 root=fileparts(mfilename('fullpath')); addpath(root);
-repoRoot=fullfile(root,'..','..','..','26isip_Aerospace');
-addpath(fullfile(repoRoot,'models','plane'));   % 平台 P2 对象(+plane)
-addpath(fullfile(repoRoot,'harness'));          % 平台评价真值(+harness)
+% 部署修复(2026-09-09 15:40): 仓库根按候选探测——兼容
+%   a) 工作目录 控制寻优/speed_esc_matlab/3.6_platform_link (2级上级/26isip_Aerospace)
+%   b) 仓库模块 26isip_Aerospace/modules/platform_link      (3级上级=仓库根)
+%   c) ASCII 暂存目录(候选全不中时不加路径, open_3_6_demo 已预先 addpath 仓库包)
+% 原单一相对候选在工作目录布局下解析到 航空器\26isip_Aerospace(不存在),
+% addpath 静默无效, 后续平台对象解析全部失败。
+repoCands={fullfile(root,'..','..','26isip_Aerospace'), ...
+           fullfile(root,'..','..','..','26isip_Aerospace'), ...
+           fullfile(root,'..','..','..'), ...
+           fullfile(root,'..','..')};
+repoRoot='';
+for i=1:numel(repoCands)
+    if isfile(fullfile(repoCands{i},'models','plane','+plane','config.m'))
+        repoRoot=repoCands{i};
+        addpath(fullfile(repoRoot,'models','plane'));   % 平台 P2 对象(+plane)
+        addpath(fullfile(repoRoot,'harness'));          % 平台评价真值(+harness)
+        break;
+    end
+end
 % —— 自愈暂存(2026-09-08): 绕开MATLAB目录缓存滞后导致的 w36.* 解析失败 ——
 if exist('w36.fit_curve_wind','file')~=2
     stg=fullfile(tempdir,['w36stage_' datestr(now,'yyyymmddHHMMSS') '_' num2str(randi(8999)+1000)]);
     copyfile(fullfile(root,'+w36'),fullfile(stg,'+w36'));
+    if isfile(fullfile(root,'pretrained','pretrain_platform_composite.mat'))
+        mkdir(fullfile(stg,'pretrained'));
+        copyfile(fullfile(root,'pretrained','pretrain_platform_composite.mat'), fullfile(stg,'pretrained','pretrain_platform_composite.mat')); % 预训练模型随暂存(2026-09-09)
+    end
     addpath(stg); clear functions; rehash;
 end
 fig=uifigure('Name','任务3.6风速推断寻优：空速=地速−风速(顺风右移/逆风左移) × 风不影响运动 × 七种风场(动态演示)',...
@@ -87,7 +107,8 @@ speedSlider=uislider(g,'Limits',[0.5 8],'Value',1,'MajorTicks',[.5 1 2 4 8],...
 speedSlider.ValueChangedFcn=@(~,ev) setSpeed(ev.Value);
     function setSpeed(val)
         speedLabel.Text=sprintf('播放速度: %.2fx',val);
-        if strcmp(clock.Running,'on'), clock.Period=.15/val; end
+        % 2026-09-09 修复: 运行中的timer不能直接设Period, 先stop再改再start
+        if strcmp(clock.Running,'on'), stop(clock); clock.Period=.15/val; start(clock); end
     end
 actions=uigridlayout(left,[3 4]); put(actions,3,1); actions.Padding=[0 0 8 0];
 actions.RowHeight={34,34,34}; actions.RowSpacing=7;
@@ -125,6 +146,7 @@ put(ax(1),1,1); put(ax(2),1,2); put(ax(3),2,1); put(ax(4),2,2);
 status=uilabel(outer,'Text','就绪','FontName','Microsoft YaHei'); put(status,3,2);
 clock=timer('ExecutionMode','fixedSpacing','Period',.15,'BusyMode','drop','TimerFcn',@tick);
 L=table(); info=[]; scn=[]; c=[]; Lb=table(); mBase=[]; cursor=1; dirty=true;
+wattScale=103.7;   % 显示换算: 本地=103.7(悬停瓦数); 平台后端在运行后更新为平台悬停瓦数(2026-09-09 数据源一致性)
 h=struct(); phaseMap=[]; cumEnergy=[]; estError=[]; curView='console';
 phaseMap={'local','局部';'sigma','噪声估计';'far','远点证据';'scan','扫描';...
     'refine','精调';'polish','顶点';'hold','锁定';'probe','复探';...
@@ -301,12 +323,12 @@ prepare();
         psi=deg2rad(L.headingDeg(k));
         px=R*cos(psi); py=R*sin(psi);
         gSpeed.Value=L.speed(k);
-        gPower.Value=L.powerTrue(k)*c.pHover;
+        gPower.Value=L.powerTrue(k)*wattScale;
         tailExcess=100*sum(L.powerTrue(1:k)-L.minPowerTrue(1:k))/max(sum(L.minPowerTrue(1:k)),eps);
-        labMetrics.Text=sprintf(['空速 %.2f | 航向 %3.0f° | 周期 %.0f s | 功率真值 %.3f | '...
-            '测量 %.3f | 累计能耗超额 %.2f%%'],...
+        labMetrics.Text=sprintf(['空速 %.2f | 航向 %3.0f° | 周期 %.0f s | 功率真值 %.1f W | '...
+            '测量 %.1f W | 累计能耗超额 %.2f%%'],...
             L.airspeed(k),mod(rad2deg(psi),360),2*pi*R/max(L.speed(k),0.1),...
-            L.powerTrue(k),L.powerMeas(k),tailExcess);
+            L.powerTrue(k)*wattScale,L.powerMeas(k)*wattScale,tailExcess);
         labPos.Text=sprintf('位置: (%+.0f, %+.0f) m',px,py);
         labHdg.Text=sprintf('航向: %3.0f°',mod(rad2deg(psi),360));
         thet=linspace(0,2*pi,181);
@@ -385,6 +407,18 @@ prepare();
             drawCasePreview();
             scn=w36.scenario(scenarioC.Value,c);
             [L,info]=w36.run_algorithm(algorithm.Value,scn,c);
+            if strcmp(c.backend,'platform') && isstruct(info) && isfield(info,'platTruth') && ~isempty(info.platTruth)
+                wattScale=info.platTruth.hoverW;   % 显示换算随数据源: 平台悬停功率(2026-09-09)
+                logMsg(sprintf('平台后端: 全部图像已切换为平台真实数据(参考线/拟合线/采样/轨迹均为平台瓦数, 悬停=%.0f W)',wattScale));
+            end
+            if any(strcmp(algorithm.Value,{'purerl_on','purerl_off'})) && strcmp(c.backend,'platform') ...
+                    && isstruct(info) && isfield(info,'preInit')
+                if info.preInit
+                    logMsg('purerl: 已加载平台数据离线预训练的缓存模型(static圆周+默认复合风)');
+                else
+                    logMsg('purerl: 当前风场配置无缓存模型, 已改在平台数据上在线预训练(耗时较长)');
+                end
+            end
             n=height(L);
             cumEnergy=100*cumsum(L.powerTrue-L.minPowerTrue)./cumsum(L.minPowerTrue);
             estError=abs(L.estimate-L.optimumTrue);
@@ -468,7 +502,9 @@ prepare();
             if strcmp(clock.Running,'off')
                 clock.Period=.15/speedSlider.Value; start(clock);
             else
-                clock.Period=.15/speedSlider.Value;
+                % 2026-09-09 修复: 运行中的timer不能直接设Period(报"计时器运行时
+                % 无法设置Period"), 先stop再改再start, 实现播放中变速。
+                stop(clock); clock.Period=.15/speedSlider.Value; start(clock);
             end
             status.Text='播放中';
         catch err, status.Text=['配置错误：' err.message]; end
@@ -684,18 +720,33 @@ prepare();
     function drawCasePreview()
         if isempty(c), buildConfig(); end
         vv=linspace(0,c.upper,400);
-        cv=[0.95 0.90 0.85];
         hds=[h.case1,h.case2,h.case3];
-        for q=1:3
-            cc=w36.config(c,'curveCase',cv(q));
-            hds(q).XData=vv; hds(q).YData=w36.base_curve(vv,cc)*c.pHover;
-            if abs(curveC.Value-cv(q))<1e-9
-                hds(q).Color=[.85 .33 .1]; hds(q).LineWidth=2.4;
-            else
-                hds(q).Color=[.75 .75 .75]; hds(q).LineWidth=0.8;
+        if strcmp(c.backend,'platform') && ~isempty(which('harness.make_plane_adapter'))
+            % 平台后端: 预览平台真值曲线(真实瓦数), 不画本地代理的三个case
+            ac0=harness.make_plane_adapter(struct('powerScaleW',1),struct());
+            T0=ac0.truth(); JN0=T0.curveJ(:)'; uu0=T0.curveV(:)';
+            msk=uu0<=13;
+            wattScale=T0.curveJ(1);   % 平台悬停功率(W)——显示换算随数据源(2026-09-09)
+            hds(1).XData=uu0; hds(1).YData=JN0;
+            hds(1).Color=[.85 .33 .1]; hds(1).LineWidth=2.4; hds(1).DisplayName='平台真值(W)';
+            hds(2).XData=nan; hds(2).YData=nan; hds(2).DisplayName='case2 空速曲线 谷底90%';
+            hds(3).XData=nan; hds(3).YData=nan; hds(3).DisplayName='case3 空速曲线 谷底85%';
+            ylim(ax(1),[0.9*min(JN0(msk)), 1.15*max(JN0(msk))]);
+        else
+            cv=[0.95 0.90 0.85];
+            dn={'case1 空速曲线 谷底95%','case2 空速曲线 谷底90%','case3 空速曲线 谷底85%'};
+            for q=1:3
+                cc=w36.config(c,'curveCase',cv(q));
+                hds(q).XData=vv; hds(q).YData=w36.base_curve(vv,cc)*c.pHover;
+                hds(q).DisplayName=dn{q};
+                if abs(curveC.Value-cv(q))<1e-9
+                    hds(q).Color=[.85 .33 .1]; hds(q).LineWidth=2.4;
+                else
+                    hds(q).Color=[.75 .75 .75]; hds(q).LineWidth=0.8;
+                end
             end
+            ylim(ax(1),[78 145]);
         end
-        ylim(ax(1),[78 145]);
         legend(ax(1),'Location','northwest','NumColumns',2,'FontSize',7);
     end
 
@@ -703,7 +754,17 @@ prepare();
         if isempty(L), return; end
         n=height(L); k=cursor;
         vis=truth.Value;
-        tags=string(L.tag(1:k)); sp=L.speed(1:k); pm=L.powerMeas(1:k)*c.pHover;
+        % 2026-09-09 数据源一致性: 平台后端时参考线/拟合线/采样点全部用平台口径
+        % (归一化功率, 平台悬停=1), 本地后端维持原 base_curve×pHover 口径不变。
+        isPlat=strcmp(c.backend,'platform') && isstruct(info) ...
+            && isfield(info,'platTruth') && ~isempty(info.platTruth);
+        if isPlat
+            T=info.platTruth; JN=T.JJ(:)'; uuT=T.uu(:)';   % 平台真值曲线: 真实瓦数
+            pm=L.powerMeas(1:k)*wattScale;  % wattScale=平台悬停功率——归一化日志换算回真实瓦数(2026-09-09)
+        else
+            pm=L.powerMeas(1:k)*c.pHover;
+        end
+        tags=string(L.tag(1:k)); sp=L.speed(1:k);
         au=L.airspeed(1:k);   % 2026-09-08修: 采样点横轴统一用空速——功率只由空速决定,
                               % 采样应落在绿拟合线/蓝空速真值上; 旧版用地速x, 风把点云
                               % 拉成2.8-9.8横带, 看起来像"拟合与采样差很远"(实为两域混画)
@@ -713,10 +774,19 @@ prepare();
         [WxK,WyK,VxK,VyK]=w36.wind_field(scn,tNow,psiK);
         vv=linspace(c.lower,c.upper,400);
         if vis
-            uu=hypot(vv*cos(psiK)-VxK,vv*sin(psiK)-VyK);
-            h.curve.XData=vv; h.curve.YData=(w36.base_curve(uu-L.shiftDx(k),c)+L.shiftDy(k))*c.pHover;
-            h.curveAir.XData=vv; h.curveAir.YData=(w36.base_curve(vv-L.shiftDx(k),c)+L.shiftDy(k))*c.pHover;
-            h.vstar.XData=L.optimumTrue(k); h.vstar.YData=L.minPowerTrue(k)*c.pHover;
+            if isPlat
+                % 平台口径: 蓝线=平台空速真值(真实瓦数); 黑线=当前航向地速快照
+                % (空速真值曲线右移顺风分量 q); 红星v*=(地面最优, 平台最小功率)
+                qK=WxK*cos(psiK)+WyK*sin(psiK);
+                h.curve.XData=vv; h.curve.YData=interp1(uuT,JN,max(vv-qK,0),'linear',NaN);
+                h.curveAir.XData=vv; h.curveAir.YData=interp1(uuT,JN,vv,'linear',NaN);
+                h.vstar.XData=L.optimumTrue(k); h.vstar.YData=L.minPowerTrue(k)*wattScale;
+            else
+                uu=hypot(vv*cos(psiK)-VxK,vv*sin(psiK)-VyK);
+                h.curve.XData=vv; h.curve.YData=(w36.base_curve(uu-L.shiftDx(k),c)+L.shiftDy(k))*c.pHover;
+                h.curveAir.XData=vv; h.curveAir.YData=(w36.base_curve(vv-L.shiftDx(k),c)+L.shiftDy(k))*c.pHover;
+                h.vstar.XData=L.optimumTrue(k); h.vstar.YData=L.minPowerTrue(k)*c.pHover;
+            end
         else
             h.curve.XData=nan; h.curve.YData=nan;
             h.curveAir.XData=nan; h.curveAir.YData=nan;
@@ -735,15 +805,30 @@ prepare();
                 && all(isfinite(info.coefs))
             uu=linspace(info.uLo,info.uHi,200); xg=(uu-7.5)/4.5; cf=info.coefs;
             h.fitCurve.XData=uu;
-            h.fitCurve.YData=(cf(1)+cf(2)*xg+cf(3)*xg.^2+cf(4)*xg.^3+cf(5)*xg.^4)*c.pHover;
-            xg0=(info.uStar-7.5)/4.5;   % û*标记: 拟合谷底落在空速域哪里, 一眼可见
-            h.uStar.XData=info.uStar;
-            h.uStar.YData=(cf(1)+cf(2)*xg0+cf(3)*xg0^2+cf(4)*xg0^3+cf(5)*xg0^4)*c.pHover;
+            if isPlat
+                % 平台口径: 拟合系数学的是平台归一化功率, ×wattScale(平台悬停W)回到真实瓦数
+                h.fitCurve.YData=(cf(1)+cf(2)*xg+cf(3)*xg.^2+cf(4)*xg.^3+cf(5)*xg.^4)*wattScale;
+                xg0=(info.uStar-7.5)/4.5;   % û*标记: 拟合谷底落在空速域哪里, 一眼可见
+                h.uStar.XData=info.uStar;
+                h.uStar.YData=(cf(1)+cf(2)*xg0+cf(3)*xg0^2+cf(4)*xg0^3+cf(5)*xg0^4)*wattScale;
+            else
+                h.fitCurve.YData=(cf(1)+cf(2)*xg+cf(3)*xg.^2+cf(4)*xg.^3+cf(5)*xg.^4)*c.pHover;
+                xg0=(info.uStar-7.5)/4.5;   % û*标记: 拟合谷底落在空速域哪里, 一眼可见
+                h.uStar.XData=info.uStar;
+                h.uStar.YData=(cf(1)+cf(2)*xg0+cf(3)*xg0^2+cf(4)*xg0^3+cf(5)*xg0^4)*c.pHover;
+            end
         else
             h.fitCurve.XData=nan; h.fitCurve.YData=nan;
             h.uStar.XData=nan; h.uStar.YData=nan;
         end
         h.est.XData=au(max(1,k-20):k); h.est.YData=pm(max(1,k-20):k);
+        if isPlat
+            % 平台口径: y轴范围由平台真值曲线(0-13 m/s段, 真实瓦数)+采样自适应
+            msk=uuT<=13;
+            yh=max([max(pm(:)), max(JN(msk)), wattScale]);   % 逐项max, 列/行向量不混拼
+            ylim(ax(1),[0.95*min(JN(msk)), 1.15*yh]);
+        end
+        ylabel(ax(1),'功率 / W');
         % 右上
         h.speed.XData=(1:k)'; h.speed.YData=sp;
         h.airspd.XData=(1:k)'; h.airspd.YData=L.airspeed(1:k);
@@ -758,9 +843,9 @@ prepare();
         end
         xlim(ax(2),[1 n]); ylim(ax(2),[c.lower-0.5,max(c.upper,max(L.airspeed))+0.5]);
         % 左下
-        h.pTrue.XData=(1:k)'; h.pTrue.YData=L.powerTrue(1:k)*c.pHover;
+        h.pTrue.XData=(1:k)'; h.pTrue.YData=L.powerTrue(1:k)*wattScale;
         h.pMeas.XData=(1:k)'; h.pMeas.YData=pm;
-        if vis, h.pMin.XData=(1:k)'; h.pMin.YData=L.minPowerTrue(1:k)*c.pHover;
+        if vis, h.pMin.XData=(1:k)'; h.pMin.YData=L.minPowerTrue(1:k)*wattScale;
         else, h.pMin.XData=nan; h.pMin.YData=nan; end
         xlim(ax(3),[1 n]);
         % 右下

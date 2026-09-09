@@ -1,4 +1,4 @@
-function info = pure_rl_pre_run(plant, p, n, mode, warmPlant)
+function info = pure_rl_pre_run(plant, p, n, mode, warmPlant, preInit)
 %PURE_RL_PRE_RUN 预训练纯奖励RL(任务3.6): 把3.4的purerl拆成在线/离线两种部署。
 %   mode='off' 预训练离线部署: 试飞时段预训练收敛后冻结策略, 评估期纯贪心执行,
 %              不再学习(部署确定性/可复现, 无探索能耗);
@@ -18,16 +18,24 @@ function info = pure_rl_pre_run(plant, p, n, mode, warmPlant)
 if nargin<5
     error('w36:PureRLPre','需要 warmPlant(试飞时段plant实例)。');
 end
+% 2026-09-09 数据源一致性: 可选第6参 preInit(muB/bBase/sigma/warm元信息)——平台
+% 后端从缓存模型直接部署(预训练已在平台数据上离线完成, 见 make_platform_pretrain),
+% 跳过试飞循环。本地路径不传该参, 行为零变化。
+usePreInit=(nargin>=6 && ~isempty(preInit));
 nBin=round(p.plBins);
 muB=p.initialSpeed*ones(1,nBin);
 bBase=nan(1,nBin);
-
+muPre=muB; bBasePre=bBase; sigmaPre=p.plSigma0;
+blkMeanP=[]; blkMeanDB=[]; blkN=0; converged=false; warmupSteps=0;
+if ~usePreInit
 % ================= 试飞预训练时段(不占评测预算) =================
 qsW=w36.settled_q(warmPlant,p,1e9);
+% 就位委托制(2026-09-09): 平台q()返回前已就位, sUsed>1仅代表就位耗时秒数,
+% 测量本身有效——更新门放行(本地plant行为不变)。
+sdWarm=(isfield(warmPlant,'settleDelegated') && warmPlant.settleDelegated);
 sigma=p.plSigma0;
 psiUnw=0; Pb=NaN; k=0; lastSgn=1; stepsSinceFlip=99;
-blk=200; blkN=0; blkSumP=0; blkCnt=0; blkSumDB=0;
-blkMeanP=[]; blkMeanDB=[]; converged=false; warmupSteps=0;
+blk=200; blkSumP=0; blkCnt=0; blkSumDB=0;
 while warmPlant.count()<p.plWarmMax
     k=k+1;
     ib=min(nBin,floor(mod(psiUnw,2*pi)/(2*pi/nBin))+1);
@@ -46,8 +54,8 @@ while warmPlant.count()<p.plWarmMax
     r=-(Pm-bBase(ib))/max(abs(bBase(ib)),0.1);
     aDev=v-muB(ib);
     muStep=0;
-    if sUsed>1
-        % 瞬态测量不更新(与purerl同款): 只采样, 不学习
+    if sUsed>1 && ~sdWarm
+        % 瞬态测量不更新(与purerl同款): 只采样, 不学习; 就位委托制下测量已就位, 放行
     else
         lrT=p.plLr*max(0.25,0.99^k);
         K=round(p.plKern);
@@ -78,9 +86,21 @@ while warmPlant.count()<p.plWarmMax
 end
 warmupSteps=warmPlant.count();
 muPre=muB; bBasePre=bBase; sigmaPre=max(0.50,sigma);
+end   % ~usePreInit(试飞预训练)
+if usePreInit
+    % 从缓存模型直接进入评估段(平台后端, 预训练已离线完成)
+    muB=preInit.muB; bBase=preInit.bBase; sigma=preInit.sigma;
+    converged=true;
+    if isfield(preInit,'warmSteps'), warmupSteps=preInit.warmSteps; end
+    if isfield(preInit,'warmBlocks'), blkN=preInit.warmBlocks; else, blkN=0; end
+    if isfield(preInit,'blkMeanP'), blkMeanP=preInit.blkMeanP; end
+    if isfield(preInit,'blkMeanDB'), blkMeanDB=preInit.blkMeanDB; end
+    muPre=preInit.muB; bBasePre=preInit.bBase; sigmaPre=preInit.sigma;
+end
 
 % ================= 评估时段(600步任务窗) =================
 qs=w36.settled_q(plant,p,n);
+sdEval=(isfield(plant,'settleDelegated') && plant.settleDelegated);
 psiUnw=0; kStep=0; v=p.initialSpeed; lastSgn=1; stepsSinceFlip=99;
 Pb=NaN; sigma=p.plSigmaMin;
 muTrace=nan(1,n); sigHist=nan(1,n); ibHist=zeros(1,n);
@@ -104,8 +124,8 @@ while plant.count()<n
         if isnan(bBase(ib)), bBase(ib)=Pm; else, bBase(ib)=0.9*bBase(ib)+0.1*Pm; end
         r=-(Pm-bBase(ib))/max(abs(bBase(ib)),0.1);
         aDev=v-muB(ib);
-        if sUsed>1
-            % 瞬态不更新
+        if sUsed>1 && ~sdEval
+            % 瞬态不更新; 就位委托制下测量已就位, 放行
         else
             lrT=0.25*p.plLr;
             K=round(p.plKern);
@@ -141,4 +161,6 @@ info=struct('best',v,'bestP',NaN,'mode',m,'muB',muB,...
     'warmupSteps',warmupSteps,'warmConverged',converged,...
     'warmBlocks',blkN,'warmBlockP',{blkMeanP},'warmBlockDB',{blkMeanDB},...
     'muPre',{muPre},'bBasePre',{bBasePre},'nUpdate',nUpdate);
+info.preInit=usePreInit;   % true=从缓存模型直接部署(平台后端); false=现场试飞预训练
+info.sigmaPre=sigmaPre;    % 预训练结束时的σ(缓存模型存档用)
 end

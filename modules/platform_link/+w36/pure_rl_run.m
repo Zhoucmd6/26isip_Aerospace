@@ -41,7 +41,8 @@ while plant.count()<n
     aDev=v-muB(ib);                    % 截断后的实际动作偏移
     % 瞬态测量不更新: 就位步数>1说明该测量含执行暂态(指令还没飞到位),
     % 用它更新会把"执行误差"误当"动作好坏"——只采样, 不学习。
-    if sUsed>1
+    sd=(isfield(plant,'settleDelegated') && plant.settleDelegated);
+    if sUsed>1 && ~sd   % 就位委托制: 测量已就位, 放行更新(2026-09-09)
         muTrace(kStep)=muB(ib); sigHist(kStep)=sigma; ibHist(kStep)=ib;
         continue;
     end

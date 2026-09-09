@@ -130,12 +130,12 @@ while plant.count()<n
             [coefsN,~,fitRmsN,uLoN,uHiN,uKeptN]=w36.fit_curve_wind(psSet,vSet,pSet,p,wSm);
             sseOld=w36.curve_sse(coefs,wSm,psSet,vSet,pSet);
             sseNew=w36.curve_sse(coefsN,wSm,psSet,vSet,pSet);
-            if sseNew < sseOld*0.999
+            if sseNew < sseOld*0.999 && all(isfinite(coefsN))
                 coefs=coefsN; uLo=uLoN; uHi=uHiN; fitRms=fitRmsN; uKept=uKeptN;
                 end
             uSup=uKeptCal; if isempty(uSup), uSup=uKeptN; end
             uStar=w36.curve_argmin(coefs,uLo,uHi,p,uSup);
-            uArg=uStar;
+            if ~isfinite(uStar), uStar=uArg; end   % 2026-09-09: 重拟合退化时保持上一有效û*(防û*(t)断线与调度NaN)
         end
         if mod(kp,p.ucProbeEvery)==2 && nr>=2
             sPair=(rnP(nr-1)-rnP(nr))/(2*p.ucProbeDelta);  % +δ采样在nr-1
@@ -152,6 +152,7 @@ while plant.count()<n
                 % 12种子全部中招); 局部微调交给探针, 大幅修正只能来自重拟合argmin。
                 uStar=min(max(uStar+du,uArg-1.5),uArg+1.5);
                 uStar=min(max(uStar,p.lower+0.5),p.upper-1);
+                if ~isfinite(uStar), uStar=uArg; end   % 2026-09-09: 探针退化保持上一有效û*
                 sPrev=sPair;
             else
                 sPrev=NaN;   % 噪声门限以下: 不更新也不累积割线

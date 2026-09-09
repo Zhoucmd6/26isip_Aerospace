@@ -21,6 +21,13 @@ function [log, info] = run_algorithm(name, scn, c)
 % 任务3.6曲线未知口径: 因果策略(hybrid/sweepcal/rl)只拿 ctrl_view 白名单
 % (剔除曲线/u*/风/噪声真值); windinfer/est/known 依赖已知曲线, 作为 oracle
 % 参照下发全量config(评价侧标注)。
+useP=strcmp(c.backend,'platform');
+if useP
+    % 平台就位语义标定配置(2026-09-09/10, 数据源一致性): 平台慢俯仰+湍流下,
+    % 扫频扩展[2,13.5]保证强风最优下潜区有样本(抗联合辨识退化), 探针100控制
+    % 就位等待学费; 本地代理维持原[3,12]x150(已调优, 零改动)。
+    c.swLo=2.0; c.swHi=13.5; c.swSteps=100;
+end
 pCtrl=w36.ctrl_view(c);
 useP=strcmp(c.backend,'platform');
 if useP
@@ -42,11 +49,28 @@ switch name
     case {'purerl_on','purerl_off'}
         % 3.5主角: 预训练在试飞时段(独立plant实例, 不占评测预算, 不进评价表/MOE)。
         % 试飞场景=static、湍流同分布不同实现(scenario seed+17), 不泄漏评测段真值。
-        cW=c; cW.seed=c.seed+17; cW.duration=pCtrl.plWarmMax+50;   % 试飞段预算=预训练上限
-        scnW=w36.scenario('static',cW);
-        plantW=w36.make_plant(scnW,cW);
+        % 2026-09-09 数据源一致性修复: 原先无条件用本地代理plant预训练, 学到的是
+        % 代理曲线(谷底6.3/深度0.90), 部署到平台(谷底5.15/深度0.727)存在系统性
+        % 偏移。现本地后端维持原路径; 平台后端预训练改在平台plant上进行——默认
+        % 复合风场景优先取缓存模型(make_platform_pretrain 离线生成), 其余风场
+        % 配置回退为平台plant在线预训练(慢但正确)。
         if strcmp(name,'purerl_on'), md='on'; else, md='off'; end
-        info=w36.pure_rl_pre_run(plant,pCtrl,n,md,plantW);
+        if useP
+            M=w36.load_platform_pretrain(c);
+            if ~isempty(M)
+                info=w36.pure_rl_pre_run(plant,pCtrl,n,md,[],M);
+            else
+                cW=c; cW.seed=c.seed+17; cW.duration=pCtrl.plWarmMax+50;
+                scnW=w36.scenario('static',cW);
+                plantW=w36.make_platform_plant(scnW,cW);
+                info=w36.pure_rl_pre_run(plant,pCtrl,n,md,plantW);
+            end
+        else
+            cW=c; cW.seed=c.seed+17; cW.duration=pCtrl.plWarmMax+50;   % 试飞段预算=预训练上限
+            scnW=w36.scenario('static',cW);
+            plantW=w36.make_plant(scnW,cW);
+            info=w36.pure_rl_pre_run(plant,pCtrl,n,md,plantW);
+        end
     case 'sweepcal'
         info=w36.sweepcal_run(plant,pCtrl,n);   % 对照: 全速度域标定+重拟合链+探针
     case 'rl'
@@ -61,5 +85,10 @@ switch name
         error('w36:RunAlgorithm','Unknown algorithm: %s (purerl_on/purerl_off/purerl_scratch + 继承: sweepcal/rl/hybrid/openloop/windinfer/est/known)',name);
 end
 info.name=name; info.scenario=scn.kind; info.seed=c.seed;
+if useP
+    % 平台参照束(2026-09-09 数据源一致性): demo参考线/ylim/换算随数据源切换,
+    % 全部取自平台权威真值(红线1: 只进评价侧与显示, 控制器不可读)。
+    info.platTruth=plant.truth();
+end
 log=plant.table();
 end

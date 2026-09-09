@@ -1,0 +1,9 @@
+DECOMP[sw100] rows=9000 uStar=5.412 totalExcess=1.80%
+  seg    1-1500s: excess= 11.54%  meanSpeed=5.70  calibFrac=0.24
+  seg 1501-3000s: excess=  4.44%  meanSpeed=4.94  calibFrac=0.00
+  seg 3001-4500s: excess= -0.68%  meanSpeed=4.62  calibFrac=0.00
+  seg 4501-6000s: excess= -1.09%  meanSpeed=4.67  calibFrac=0.00
+  seg 6001-7500s: excess= -1.42%  meanSpeed=4.77  calibFrac=0.00
+  seg 7501-9000s: excess= -1.98%  meanSpeed=4.71  calibFrac=0.00
+DECOMP_DONE[sw100]
+ERROR: MATLAB error Exit Status: 0xc0000374, Heap corruption

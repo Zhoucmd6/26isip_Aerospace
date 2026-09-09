@@ -695,16 +695,21 @@ tc.verifyEqual(info.nUpdate,0,'离线部署评估期零更新');
 tc.verifyGreaterThanOrEqual(height(log),c.evalSeconds,'任务窗逐秒覆盖');
 end
 
-function test_platform_query_advances_one_second(tc)
-% F1 回归锚(2026-09-09 接手修复): 单次 q() 恰推进 1.000 s、日志恰 1 行。
-% 原缺陷: adv 误传步数(stepPerSec=100), 每查询推进 100 s, 标定 150 样本
-% 需 >=15000 s 远超预算 -> sweepcal 拟合从未执行, û* 停在初值 7.5。
+function test_platform_query_settles_and_counts(tc)
+% 拍板2落地(2026-09-09 D3条件阶段5方案1"后端就位委托制", 用户确认触发): q()内部
+% 推进至 |v_ground-v_ref|<=settleTol(连续2秒)或30s上限; 秒预算照计、逐秒日志
+% 1行/秒、返回就位后末秒功率。取代F1时代"恰1.0s"断言——慢俯仰动力学下该口径
+% 采样带瞬态(标定迟滞±0.3-0.4 m/s), 平台寻优质量与本地不对等。
 c=w36.config('backend','platform','evalSeconds',400,'seed',11,...
     'windKind','const','windBias',0,'windBiasY',0);
 pl=w36.make_platform_plant(w36.scenario('static',c),c);
-t0=pl.count(); pl.q(6.3,'probe'); t1=pl.count();
-tc.verifyEqual(t1-t0,1.0,'AbsTol',1e-9,'单次q()应恰推进1秒(预算按秒口径)');
-tc.verifyEqual(height(pl.table()),1,'单次q()应恰产生1行逐秒日志');
+t0=pl.count(); Pm=pl.q(6.3,'probe'); t1=pl.count();
+tc.verifyGreaterThan(t1-t0,1.0-1e-9,'查询至少推进1秒');
+tc.verifyLessThan(t1-t0,30+1e-9,'不超过就位等待上限30秒');
+tb=pl.table();
+tc.verifyLessThan(abs(height(tb)-(t1-t0)),1.5,'逐秒日志≈1行/秒(浮点秒边界±1)');
+tc.verifyLessThan(abs(tb.speed(end)-6.3),c.settleTol+0.05,'返回时机体已就位(容差+数值余量)');
+tc.verifyTrue(isfinite(Pm),'返回有限功率测量');   % R2022b无verifyFinite
 end
 
 function test_platform_sweepcal_wind_bounded(tc)

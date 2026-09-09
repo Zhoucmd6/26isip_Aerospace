@@ -12,8 +12,31 @@ function plt = make_platform_plant(scn, c)
 % 功率归一: 除以平台悬停功率(真值曲线 J(0)), 算法侧 hover≈1 口径与 3.5 一致。
 % 依赖: models/plane(+plane) 与 harness(+harness) 在 MATLAB path(平台线仓库)。
 if nargin<1, c=w36.config(); end
-root=fileparts(mfilename('fullpath')); repoRoot=fullfile(root,'..','..','..');
-if isempty(which('plane.config'))
+root=fileparts(mfilename('fullpath'));
+% 部署修复(2026-09-09 15:40): 同一代码可能从两种布局运行——
+%   a) 仓库模块 26isip_Aerospace/modules/platform_link/+w36 (3级上级=仓库根)
+%   b) 工作目录 控制寻优/speed_esc_matlab/3.6_platform_link/+w36
+%      (3级上级=控制寻优, 仓库根=控制寻优/26isip_Aerospace)
+% 单一相对候选在 b) 下解析到 控制寻优\models\plane(不存在)使 copyfile 直接
+% 抛"找不到匹配文件"。改为逐候选探测 models/plane/+plane/config.m 文件存在性。
+cands={fullfile(root,'..','..','..'), ...
+       fullfile(root,'..','..','..','26isip_Aerospace'), ...
+       fullfile(root,'..','..','26isip_Aerospace'), ...
+       fullfile(root,'..','..','..','..','26isip_Aerospace')};
+needPlane=isempty(which('plane.config'));
+needHarness=isempty(which('harness.make_plane_adapter'));
+repoRoot='';
+if needPlane || needHarness
+    for i=1:numel(cands)
+        if isfile(fullfile(cands{i},'models','plane','+plane','config.m'))
+            repoRoot=cands{i}; break;
+        end
+    end
+    assert(~isempty(repoRoot),'w36:PlatformPlant', ...
+        ['未找到26isip_Aerospace仓库根(已试: ' strjoin(cands,' ; ') ...
+         ')。请用 open_3_6_demo 启动, 或确认仓库已git clone/pull到上述任一位置。']);
+end
+if needPlane
     dst=fullfile(tempdir,'t36_plane_fallback');
     if exist(fullfile(dst,'+plane','config.m'),'file')~=2
         if exist(dst,'dir'), rmdir(dst,'s'); end
@@ -21,7 +44,7 @@ if isempty(which('plane.config'))
     end
     addpath(dst);
 end
-if isempty(which('harness.make_plane_adapter'))
+if needHarness
     dst2=fullfile(tempdir,'t36_harness_fallback');
     if exist(fullfile(dst2,'+harness','make_plane_adapter.m'),'file')~=2
         if exist(dst2,'dir'), rmdir(dst2,'s'); end
@@ -48,7 +71,8 @@ tHist = []; pHist = [];
 rows = {}; rowCnt = 0; secMarker = floor(s.time_s);
 accPeak = 0; vPrev = s.v_ground_mps;
 plt = struct('q', @q, 'amendEstimate', @amendEstimate, 'count', @count, ...
-    'table', @table, 'truth', @truth, 'windAt', @windAt, 'planeCfg', pc);
+    'table', @table, 'truth', @truth, 'windAt', @windAt, 'planeCfg', pc, ...
+    'settleDelegated', true);   % 就位委托制(2026-09-09): q()返回前已就位, RL更新门据此放行
     function [Wx, Wy] = windAt(t, psi)
         [Wx, Wy] = w36.wind_field(scnW, t, psi);
     end
@@ -65,10 +89,24 @@ plt = struct('q', @q, 'amendEstimate', @amendEstimate, 'count', @count, ...
     function Pm = q(v, tag)
         vref = min(pc.speed_bounds_mps(2), max(pc.speed_bounds_mps(1), double(v)));
         curV = vref; lastTag = char(tag);
-        % F1(2026-09-09): adv 参数是秒数——每次查询恰推进 1.0 s(预算按秒口径)。
-        % 原实现误传步数 stepPerSec(=100), 每查询推进 100 s, 标定 150 样本
-        % 需 >=15000 s 远超预算, sweepcal 拟合从未执行(û* 停在初值 7.5)。
-        Pm = adv(1.0);
+        % F1(2026-09-09): adv 参数是秒数(原误传步数致每查询100s, 标定永不执行)。
+        % D3条件阶段5落地(2026-09-09 用户确认触发): 后端就位委托制——每次查询
+        % 内部循环 adv(1.0) 直至 |v_ground-v_ref|<=c.settleTol, 或30秒安全上限;
+        % 等待秒数照计预算(count()=s.time_s), 返回就位后末秒功率(即接手方案§3的
+        % "适配器稳态查询制"原草案, 不加严保持条件)。原因: settled_q 的就位模型
+        % 按本地动力学标定, 平台慢俯仰(t63≈2.9s)下采样带瞬态, 实测标定迟滞
+        % ±0.3-0.4 m/s——平台寻优质量与本地不对等。逐秒日志保持1行/秒。
+        settledK = 0; guard = 0;
+        while true
+            Pm = adv(1.0); guard = guard + 1;
+            if abs(s.v_ground_mps - vref) <= c.settleTol, break; end
+            if guard >= 30, break; end
+        end
+        % 功率归一(2026-09-09 补漏): adv 返回原始瓦数, q() 必须除以平台悬停功率
+        % (与逐秒日志口径一致, 也与本地plant hover≈1口径一致——数据源一致性)。
+        % 此前返回路径漏除: sweepcal 拟合系数为瓦特量纲, demo按归一化绘制导致
+        % 拟合线始终在图范围外(用户报告的现象1)。
+        Pm = Pm / powerScale;
     end
     function PmChunk = adv(dtChunk)
         nInner = round(dtChunk/dt);

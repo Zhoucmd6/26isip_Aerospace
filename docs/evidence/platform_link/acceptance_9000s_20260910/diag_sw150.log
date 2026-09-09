@@ -1,0 +1,8 @@
+DECOMP[sw150] rows=9000 uStar=3.854 totalExcess=4.89%
+  seg    1-1500s: excess= 14.24%  meanSpeed=5.38  calibFrac=0.30
+  seg 1501-3000s: excess=  5.89%  meanSpeed=3.30  calibFrac=0.00
+  seg 3001-4500s: excess=  3.69%  meanSpeed=3.25  calibFrac=0.00
+  seg 4501-6000s: excess=  1.70%  meanSpeed=3.52  calibFrac=0.00
+  seg 6001-7500s: excess=  2.36%  meanSpeed=3.01  calibFrac=0.00
+  seg 7501-9000s: excess=  1.46%  meanSpeed=3.07  calibFrac=0.00
+DECOMP_DONE[sw150]

@@ -36,6 +36,15 @@ if nargin>=5 && isscalar(wFixed)==false && numel(wFixed)==2
     w=wFixed(:); fitRms=sqrt(sseW/numel(uAll));
     return;
 end
+% 2026-09-09 抗退化改造(平台强风实测: 联合SSE最优解的谷底跑到11.25, 真值5.15):
+% 机制——平台曲线陡峭, 四次式在保留带宽上无法完全表出, 错误ŵ+柔性四次式可以在
+% 保留带内拿到比真解更低的SSE(谷底落在样本稀疏区)。单一SSE选择不再可靠, 改为:
+%   (1) 收集全部下降终解(去重, 按SSE取前5)作为候选盆地;
+%   (2) "帧坍缩"判据: P严格只是空速的函数, 正确的ŵ使所有(v,ψ)样本在u=|v·t̂−ŵ|
+%       坐标系中坍缩到一条曲线(分箱内P方差最小); 错误ŵ把云散开(方差大);
+%   (3) 谷底内点约束: û*必须落在样本u范围内侧(距边缘>=0.25), 贴边=外推伪影;
+%   选择代价 = SSE比值 + 0.8×帧方差比值, 在内点候选中取最小。
+candW=zeros(24,2); candSse=Inf(24,1); nC=0;
 for si=1:size(S,1)
     w2=S(si,:).';
     for it=1:8
@@ -51,11 +60,51 @@ for si=1:size(S,1)
     end
     w2=min(max(w2,-8),8);                % 风幅值物理上限
     [cC,sse]=profSol(w2,cx,cy,Pm);
-    if sse<bestSse
-        bestSse=sse; w=w2; coefs=cC;
-        fitRms=sqrt(bestSse/numel(uAll));
+    if sse<bestSse, bestSse=sse; end
+    dup=false;
+    for j=1:nC
+        if norm(candW(j,:)-w2)<0.4
+            dup=true;
+            if sse<candSse(j), candSse(j)=sse; candW(j,:)=w2; end
+            break;
+        end
     end
+    if ~dup && nC<24, nC=nC+1; candW(nC,:)=w2; candSse(nC)=sse; end
 end
+if nC==0, return; end
+[~,ordS]=sort(candSse(1:nC),'ascend');
+topW=candW(ordS(1:min(5,nC)),:); topSse=candSse(ordS(1:min(5,nC)));
+nb=12; uSrt=sort(uAll); eIdx=round(linspace(1,numel(uSrt),nb+1));
+eEdge=uSrt(eIdx); eEdge(1)=eEdge(1)-1; eEdge(end)=eEdge(end)+1;
+bid=discretize(uAll,eEdge);   % 每样本的箱号(histcounts第一输出是计数, 不是箱号)
+scoreV=Inf(1,size(topW,1));
+for i=1:size(topW,1)
+    uk=min(max(hypot(cx-topW(i,1),cy-topW(i,2)),0.5),19.5);
+    vTot=0;
+    for b=1:nb
+        mk=bid==b;
+        if nnz(mk)>=2, vTot=vTot+sum((Pm(mk)-mean(Pm(mk))).^2); end
+    end
+    if vTot>0, scoreV(i)=vTot; end
+end
+% 选择: 先剔除谷底非内点的候选, 再在"SSE比值+0.8x帧方差比值"最小者中定选
+sel=0; bestCost=Inf;
+for i=1:size(topW,1)
+    cCi=profSol(topW(i,:).',cx,cy,Pm);
+    uArgT=w36.curve_argmin(cCi,uLo,uHi,p,uKept);
+    if ~isfinite(uArgT), continue; end
+    if uArgT<uLo+0.25 || uArgT>uHi-0.25, continue; end
+    sRef=min(scoreV(scoreV<Inf));
+    if ~isfinite(sRef), sRef=1e-12; end
+    cost=(topSse(i)/max(topSse(1),1e-12)) + 0.8*(scoreV(i)/sRef);
+    if cost<bestCost, bestCost=cost; sel=i; end
+end
+if sel==0
+    [~,sel]=min(topSse);
+end
+w=topW(sel,:).';
+[coefs,sseSel]=profSol(w,cx,cy,Pm);
+fitRms=sqrt(sseSel/numel(uAll));
 end
 
 function [cOut,sseOut]=profSol(wq,cx,cy,Pm)
