@@ -41,16 +41,21 @@ while plant.count()<n
     tx=cos(psiUnw); ty=sin(psiUnw);
     q=tx*wSm(1)+ty*wSm(2);
     disc=q^2+p.optimum0^2-(wSm(1)^2+wSm(2)^2);
-    if disc>0, v=q+sqrt(disc); else, v=max(q,0); nDisc=nDisc+1; end
+    % 守卫C(2026-09-10自sweepcal F3移植): disc<0时保持上一指令并以0.8*u*托底,
+    % 原v=max(q,0)兜底在|ŵ|高估时会把整圈指令压到近悬停(数学伪影不得改变飞行)。
+    if disc>0
+        v=q+sqrt(disc);
+    else
+        nDisc=nDisc+1;
+        v=max(v,0.8*p.optimum0);
+    end
     v=min(max(v,p.lower+0.3),p.upper-0.3);
     % ---- 2) 指令就位查询(时延+限幅一致规则), 指令死推航向 ----
     c0=plant.count();
     Pm=qs(v,'infer');
     if ~isfinite(Pm), kStep=kStep-1; break; end
     sUsed=plant.count()-c0;
-    for j=1:sUsed
-        psiUnw=psiUnw+v/p.turnRadius*p.tEval;
-    end
+    psiUnw=psiUnw+sUsed*v/p.turnRadius*p.tEval; % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
     % ---- 3) 测量入滑动窗(指令地速+死推航向+带噪功率) ----
     if nb<Wmax
         nb=nb+1;

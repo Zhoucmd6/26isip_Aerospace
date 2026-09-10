@@ -46,9 +46,7 @@ while plant.count()<n
     PmNew=qs(vCmd+dith,'est');
     sUsed=plant.count()-c0;
     if ~isfinite(PmNew), break; end
-    for j=1:sUsed
-        psiHat=mod(psiHat+(vCmd+dith)/p.turnRadius*p.tEval,2*pi);
-    end
+    psiHat=mod(psiHat+sUsed*(vCmd+dith)/p.turnRadius*p.tEval,2*pi); % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
     % ---- EKF更新步: P ≈ J0(|v·t̂+θ|), Huber降权新息 ----
     tx=cos(psiHat); ty=sin(psiHat);
     u=hypot((vCmd+dith)*tx+x(1),(vCmd+dith)*ty+x(2));

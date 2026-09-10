@@ -46,9 +46,7 @@ while warmPlant.count()<p.plWarmMax
     Pm=qsW(v,'warmup');
     if ~isfinite(Pm), break; end
     sUsed=warmPlant.count()-c0;
-    for j=1:sUsed
-        psiUnw=psiUnw+v/p.turnRadius*p.tEval;
-    end
+    psiUnw=psiUnw+sUsed*v/p.turnRadius*p.tEval; % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
     if isnan(Pb), Pb=Pm; else, Pb=0.98*Pb+0.02*Pm; end
     if isnan(bBase(ib)), bBase(ib)=Pm; else, bBase(ib)=0.9*bBase(ib)+0.1*Pm; end
     r=-(Pm-bBase(ib))/max(abs(bBase(ib)),0.1);
@@ -104,6 +102,7 @@ sdEval=(isfield(plant,'settleDelegated') && plant.settleDelegated);
 psiUnw=0; kStep=0; v=p.initialSpeed; lastSgn=1; stepsSinceFlip=99;
 Pb=NaN; sigma=p.plSigmaMin;
 muTrace=nan(1,n); sigHist=nan(1,n); ibHist=zeros(1,n);
+psiHist=nan(1,n); sUsedHist=zeros(1,n);   % 2026-09-10 诊断插桩: ψ̂推进/就位秒数逐谱写入
 nUpdate=0;
 while plant.count()<n
     kStep=kStep+1;
@@ -117,9 +116,7 @@ while plant.count()<n
         Pm=qs(v,'pure');
         if ~isfinite(Pm), kStep=kStep-1; break; end
         sUsed=plant.count()-c0;
-        for j=1:sUsed
-            psiUnw=psiUnw+v/p.turnRadius*p.tEval;
-        end
+        psiUnw=psiUnw+sUsed*v/p.turnRadius*p.tEval; % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
         if isnan(Pb), Pb=Pm; else, Pb=0.98*Pb+0.02*Pm; end
         if isnan(bBase(ib)), bBase(ib)=Pm; else, bBase(ib)=0.9*bBase(ib)+0.1*Pm; end
         r=-(Pm-bBase(ib))/max(abs(bBase(ib)),0.1);
@@ -145,11 +142,10 @@ while plant.count()<n
         Pm=qs(v,'pure');
         if ~isfinite(Pm), kStep=kStep-1; break; end
         sUsed=plant.count()-c0;
-        for j=1:sUsed
-            psiUnw=psiUnw+v/p.turnRadius*p.tEval;
-        end
+        psiUnw=psiUnw+sUsed*v/p.turnRadius*p.tEval; % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
     end
     muTrace(kStep)=muB(ib); sigHist(kStep)=sigma; ibHist(kStep)=ib;
+    psiHist(kStep)=psiUnw; sUsedHist(kStep)=sUsed;   % 2026-09-10 诊断插桩
 end
 while plant.count()<n
     plant.q(v,'hold'); plant.amendEstimate(v);
@@ -162,5 +158,6 @@ info=struct('best',v,'bestP',NaN,'mode',m,'muB',muB,...
     'warmBlocks',blkN,'warmBlockP',{blkMeanP},'warmBlockDB',{blkMeanDB},...
     'muPre',{muPre},'bBasePre',{bBasePre},'nUpdate',nUpdate);
 info.preInit=usePreInit;   % true=从缓存模型直接部署(平台后端); false=现场试飞预训练
+info.psiHist={psiHist}; info.sUsedHist={sUsedHist};   % 2026-09-10 诊断插桩
 info.sigmaPre=sigmaPre;    % 预训练结束时的σ(缓存模型存档用)
 end

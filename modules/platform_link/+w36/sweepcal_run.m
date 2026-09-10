@@ -53,7 +53,10 @@ while plant.count()<n
             % 不存在"指令归零"的物理理由——保持上一条可行指令, 数学伪影不得把
             % 飞机打到近悬停(实测原 max(q,0) 兜底使 Phase B 平均地速 0.53 m/s)。
             nDisc=nDisc+1;
-            if isnan(vFeas), v=min(max(uStar,p.lower+0.3),p.upper-0.3); else, v=vFeas; end
+            % 守卫B(2026-09-10): 保持值以0.8û*托底——若disc<0持续多步, vFeas本身
+            % 已被压到下限, 纯保持会锁死在塌缩指令; 0.8û*是"谷底空速巡航"的
+            % 无模型合理猜测, 保证任何坏拟合场景下指令不塌向悬停。
+            if isnan(vFeas), v=min(max(uStar,p.lower+0.3),p.upper-0.3); else, v=max(vFeas,0.8*uStar); end
         end
         v=min(max(v,p.lower+0.3),p.upper-0.3);
         vFeas=v;
@@ -70,9 +73,7 @@ while plant.count()<n
     Pm=qs(v,tag);
     if ~isfinite(Pm), kStep=kStep-1; break; end
     sUsed=plant.count()-c0;
-    for j=1:sUsed
-        psiUnw=psiUnw+v/p.turnRadius*p.tEval;
-    end
+    psiUnw=psiUnw+sUsed*v/p.turnRadius*p.tEval; % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
     % ---- 样本入库 ----
     if kStep<=p.swSteps
         calPsi(kStep)=psiUnw; calV(kStep)=v; calP(kStep)=Pm;

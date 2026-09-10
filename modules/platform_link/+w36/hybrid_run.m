@@ -49,7 +49,15 @@ while plant.count()<n
         tx=cos(psiUnw); ty=sin(psiUnw);
         q=tx*wSm(1)+ty*wSm(2);
         disc=q^2+uStar^2-(wSm(1)^2+wSm(2)^2);
-        if disc>0, v=q+sqrt(disc); else, v=max(q,0); nDisc=nDisc+1; end
+        % 守卫C(2026-09-10自sweepcal F3移植): disc<0只是ŵ/û*组合无闭式解的数学
+        % 伪影, 无"指令归零"的物理理由; 原v=max(q,0)兜底在|ŵ|高估时把整圈指令
+        % 压到近悬停(实测Phase B均速0.53 m/s)。保持上一指令并以0.8û*托底。
+        if disc>0
+            v=q+sqrt(disc);
+        else
+            nDisc=nDisc+1;
+            if isnan(v), v=min(max(uStar,p.lower+0.3),p.upper-0.3); else, v=max(v,0.8*uStar); end
+        end
         v=min(max(v,p.lower+0.3),p.upper-0.3);
         tag='infer';
         % ---- 探针对(上下交替, û*的测量锚): 每 ucProbeEvery 步占2步 ----
@@ -64,9 +72,7 @@ while plant.count()<n
     Pm=qs(v,tag);
     if ~isfinite(Pm), kStep=kStep-1; break; end
     sUsed=plant.count()-c0;
-    for j=1:sUsed
-        psiUnw=psiUnw+v/p.turnRadius*p.tEval;
-    end
+    psiUnw=psiUnw+sUsed*v/p.turnRadius*p.tEval; % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
     % ---- 样本入库 ----
     if kStep<=p.swSteps
         calPsi(kStep)=psiUnw; calV(kStep)=v; calP(kStep)=Pm;

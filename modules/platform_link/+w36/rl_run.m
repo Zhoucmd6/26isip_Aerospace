@@ -30,9 +30,7 @@ while kStep<p.swSteps && plant.count()<n
     Pm=qs(v,'calib');
     if ~isfinite(Pm), kStep=kStep-1; break; end
     sUsed=plant.count()-c0;
-    for j=1:sUsed
-        psiUnw=psiUnw+v/p.turnRadius*p.tEval;
-    end
+    psiUnw=psiUnw+sUsed*v/p.turnRadius*p.tEval; % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
     calPsi(kStep)=psiUnw; calV(kStep)=v; calP(kStep)=Pm;
 end
 calibSteps=kStep;
@@ -85,9 +83,7 @@ while plant.count()<n
     Pm=qs(v,'rl');
     if ~isfinite(Pm), kStep=kStep-1; break; end
     sUsed=plant.count()-c0;
-    for j=1:sUsed
-        psiUnw=psiUnw+v/p.turnRadius*p.tEval;
-    end
+    psiUnw=psiUnw+sUsed*v/p.turnRadius*p.tEval; % 2026-09-10 修复: 平台count()浮点漂移可令sUsed略小于1, for j=1:sUsed零迭代→ψ̂冻结死锁; 改为按经历秒数直乘
     if isnan(Pb), Pb=Pm; else, Pb=0.98*Pb+0.02*Pm; end
     if isnan(bBase(ib)), bBase(ib)=Pm; else, bBase(ib)=0.9*bBase(ib)+0.1*Pm; end
     r=-(Pm-bBase(ib))/max(Pb,0.1);
