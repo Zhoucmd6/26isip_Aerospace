@@ -1,0 +1,14 @@
+LOCAL sweepcal_pre rows=600 calibSteps=0 preCal=1 excess=1.28% MOE=0.9874
+LOCAL hybrid_pre rows=600 calibSteps=0 preCal=1 excess=1.80% MOE=0.9824
+LOCAL rl_pre rows=600 calibSteps=0 preCal=1 excess=1.93% MOE=0.9810
+PLAT sweepcal_pre rows=906 calibSteps=0 preCal=1 excess=0.62% MOE=0.9939
+PLAT hybrid_pre rows=903 calibSteps=0 preCal=1 excess=0.27% MOE=0.9973
+PLAT rl_pre rows=902 calibSteps=0 preCal=1 excess=2.33% MOE=0.9772
+正在运行 tests_task36
+.......... .......... .......... .......... ..........
+..
+已完成 tests_task36
+__________
+
+REGRESS_RESULT 52/52 passed, 0 failed
+CHECK37_DONE
